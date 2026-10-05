@@ -48,6 +48,19 @@ jobs:
           echo "  Password     : YourStrongPasswordHere"
           echo "  >> Connect via: ssh vpsadmin@$TS_IP"
           echo "=================================================="
+       - name: 2.5 Open Firewall for Tailscale & Verify SSH
+        run: |
+          # Allow all incoming traffic on the Tailscale interface
+          sudo ufw allow in on tailscale0
+          
+          # Ensure SSH is running and listening on all interfaces
+          sudo systemctl enable --now ssh
+          
+          # Restart SSH to pick up any config changes
+          sudo systemctl restart ssh
+          
+          # Verify Tailscale IP is assigned
+          tailscale ip -4
 
       - name: 3. Keep Server Alive (Up to 6 Hours)
         run: |
