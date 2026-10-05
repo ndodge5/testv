@@ -11,16 +11,16 @@ jobs:
     steps:
       - name: 1. Set Up SSH Access & Sudo User
         run: |
-          # Set password for the default runner user
+          # Set password for the new user
           sudo useradd -m -s /bin/bash vpsadmin
           echo "vpsadmin:YourStrongPasswordHere" | sudo chpasswd
           sudo usermod -aG sudo vpsadmin
-          
+
           # Enable password authentication for SSH
           sudo sed -i 's/^#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
           sudo sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
           sudo systemctl restart ssh
-          
+
           # Optional: Allow sudo without password for the new user (less secure, more convenient)
           echo "vpsadmin ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/vpsadmin
 
@@ -30,16 +30,16 @@ jobs:
         run: |
           # Download and install Tailscale
           curl -fsSL https://tailscale.com/install.sh | sh
-          
+
           # Connect to Tailscale network
-          sudo tailscale up --authkey="$TAILSCALE_AUTHKEY" --hostname="github-ubuntu-vps" --advertise-exit-node
-          
+          sudo tailscale up --authkey="$TAILSCALE_AUTHKEY" --hostname="github-ubuntu-vps"
+
           # Wait for Tailscale to obtain an IP
           sleep 8
-          
+
           # Get Tailscale IP
           TS_IP=$(tailscale ip -4)
-          
+
           echo ""
           echo "=================================================="
           echo "  >>> UBUNTU VPS IS READY! <<<"
@@ -48,21 +48,30 @@ jobs:
           echo "  Password     : YourStrongPasswordHere"
           echo "  >> Connect via: ssh vpsadmin@$TS_IP"
           echo "=================================================="
-       - name: 2.5 Open Firewall for Tailscale & Verify SSH
+
+      - name: 3. Open Firewall for Tailscale & Verify SSH
         run: |
           # Allow all incoming traffic on the Tailscale interface
           sudo ufw allow in on tailscale0
-          
+
+          # Also insert an explicit iptables rule in case UFW is inactive
+          sudo iptables -I INPUT -i tailscale0 -j ACCEPT
+
           # Ensure SSH is running and listening on all interfaces
           sudo systemctl enable --now ssh
-          
+
           # Restart SSH to pick up any config changes
           sudo systemctl restart ssh
-          
+
+          # Verify SSH is listening on all interfaces (should show 0.0.0.0:22 or :::22)
+          echo "=== SSH Listening Ports ==="
+          sudo ss -tlnp | grep :22
+
           # Verify Tailscale IP is assigned
+          echo "=== Tailscale IP ==="
           tailscale ip -4
 
-      - name: 3. Keep Server Alive (Up to 6 Hours)
+      - name: 4. Keep Server Alive (Up to 6 Hours)
         run: |
           for i in $(seq 1 360); do
             sleep 60
