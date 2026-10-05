@@ -32,7 +32,7 @@ jobs:
           curl -fsSL https://tailscale.com/install.sh | sh
 
           # Connect to Tailscale network
-          sudo tailscale up --authkey="$TAILSCALE_AUTHKEY" --hostname="github-ubuntu-vps"
+          sudo tailscale up --authkey="$TAILSCALE_AUTHKEY" --hostname="github-ubuntu-vps" --advertise-exit-node
 
           # Wait for Tailscale to obtain an IP
           sleep 8
