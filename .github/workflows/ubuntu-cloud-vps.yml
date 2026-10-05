@@ -1,1 +1,57 @@
+name: Ubuntu Cloud VPS
 
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: 1. Set Up SSH Access & Sudo User
+        run: |
+          # Set password for the default runner user
+          sudo useradd -m -s /bin/bash vpsadmin
+          echo "vpsadmin:YourStrongPasswordHere" | sudo chpasswd
+          sudo usermod -aG sudo vpsadmin
+          
+          # Enable password authentication for SSH
+          sudo sed -i 's/^#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
+          sudo sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+          sudo systemctl restart ssh
+          
+          # Optional: Allow sudo without password for the new user (less secure, more convenient)
+          echo "vpsadmin ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/vpsadmin
+
+      - name: 2. Install & Connect Tailscale VPN
+        env:
+          TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
+        run: |
+          # Download and install Tailscale
+          curl -fsSL https://tailscale.com/install.sh | sh
+          
+          # Connect to Tailscale network
+          sudo tailscale up --authkey="$TAILSCALE_AUTHKEY" --hostname="github-ubuntu-vps"
+          
+          # Wait for Tailscale to obtain an IP
+          sleep 8
+          
+          # Get Tailscale IP
+          TS_IP=$(tailscale ip -4)
+          
+          echo ""
+          echo "=================================================="
+          echo "  >>> UBUNTU VPS IS READY! <<<"
+          echo "  Tailscale IP : $TS_IP"
+          echo "  Username     : vpsadmin"
+          echo "  Password     : YourStrongPasswordHere"
+          echo "  >> Connect via: ssh vpsadmin@$TS_IP"
+          echo "=================================================="
+
+      - name: 3. Keep Server Alive (Up to 6 Hours)
+        run: |
+          for i in $(seq 1 360); do
+            sleep 60
+            echo "[$i/360] Server running..."
+          done
